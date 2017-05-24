@@ -33,8 +33,9 @@ function generateManifest(input, output) {
 	`;
 }
 
-function formatFilename(dest, hash) {
-	return dest.replace('[hash]', hash);
+function formatFilename(dest, hash, name) {
+	return dest.replace('[hash]', hash)
+		.replace('[name]', name);
 }
 
 function mkdirpath (dest) {
@@ -79,7 +80,7 @@ export default function hash(opts = {}) {
 			}
 
 			const hash = hasha(data.code, options);
-			const fileName = formatFilename(options.dest, hash);
+			const fileName = formatFilename(options.dest, hash, path.parse(bundle.dest).name);
 
 			if(options.replace) {
 				fs.unlinkSync(bundle.dest);

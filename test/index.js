@@ -73,6 +73,14 @@ describe('rollup-plugin-hash', () => {
 		});
 	});
 
+	it('should replace dynamic dest filename template with hash and filename of bundle', () => {
+		const res = hashWithOptions({ dest: 'tmp/[name]-[hash].js' });
+		return res.then(() => {
+			const tmp = fs.readdirSync('tmp');
+			expect(tmp).to.contain(`index-${results.sha1}`);
+		});
+	});
+
 	it('should support alternative hashing algorithms if configured', () => {
 		const res = hashWithOptions({ dest: 'tmp/[hash].js', algorithm: 'md5' });
 		return res.then(() => {

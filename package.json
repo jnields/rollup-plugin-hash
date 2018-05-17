@@ -19,7 +19,7 @@
     "pretest": "npm run build",
     "test": "mocha",
     "build": "rollup -c",
-    "prepublish": "npm run lint && npm test && npm run build"
+    "prepare": "npm run lint && npm test && npm run build"
   },
   "devDependencies": {
     "buble": "^0.15.2",

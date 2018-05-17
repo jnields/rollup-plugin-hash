@@ -87,7 +87,7 @@ export default function hash(opts = {}) {
 			}
 
 			const hash = hasha(data.code, options);
-			const fileName = formatFilename(destinationOption, hash, path.parse(bundle.dest).name);
+			const fileName = formatFilename(destinationOption, hash, path.parse(builtFile).name);
 
 			if(options.replace) {
 				fs.unlinkSync(builtFile);

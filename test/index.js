@@ -5,7 +5,9 @@ const { rollup } = require('rollup');
 const chai = require('chai');
 const expect = chai.expect;
 const chaiAsPromised = require('chai-as-promised');
+const chaiSpies = require('chai-spies');
 
+chai.use(chaiSpies);
 chai.use(chaiAsPromised);
 process.chdir('test');
 
@@ -16,17 +18,17 @@ const results = {
 	'manifestCustomInput': 'manifestCustomInput.json'
 };
 
-function hashWithOptions(options) {
+function hashWithOptions(options, outputOptions) {
 	return rollup({
-		entry: 'fixtures/index.js',
+		input: 'fixtures/index.js',
 		plugins: [
 			hash(options)
 		]
 	}).then(bundle => {
-		return bundle.write({
+		return bundle.write(Object.assign({
 			format: 'es',
-			dest: 'tmp/index.js'
-		});
+			file: 'tmp/index.js'
+		}, outputOptions));
 	});
 }
 
@@ -43,6 +45,10 @@ function rmDirectoryRecursive(path) {
 		fs.rmdirSync(path);
 	}
 };
+
+function readJson(file) {
+	return JSON.parse(fs.readFileSync(file, 'utf-8'));
+}
 
 describe('rollup-plugin-hash', () => {
 
@@ -81,6 +87,33 @@ describe('rollup-plugin-hash', () => {
 		});
 	});
 
+	it('should create a sourcemap, if applicable', () => {
+		const res = hashWithOptions({ dest: 'tmp/[hash].js' }, { sourcemap: true });
+		return res.then(() => {
+			const tmp = fs.readdirSync('tmp');
+			expect(tmp).to.contain(results.sha1);
+			expect(tmp).to.contain(results.sha1 + '.map');
+			const code = fs.readFileSync(`tmp/${results.sha1}`, 'utf-8');
+			expect(code).to.contain(`//# sourceMappingURL=${results.sha1}.map`);
+			const map = readJson(`tmp/${results.sha1}.map`);
+			expect(map.file).to.equal(results.sha1);
+		});
+	});
+
+	it('should attach an inline sourcemap, if applicable', () => {
+		const res = hashWithOptions({ dest: 'tmp/[hash].js' }, { sourcemap: 'inline' });
+		return res.then(() => {
+			const tmp = fs.readdirSync('tmp');
+			expect(tmp).to.contain(results.sha1);
+			expect(tmp).not.to.contain(results.sha1 + '.map');
+			const code = fs.readFileSync(`tmp/${results.sha1}`, 'utf-8');
+			const base64 = /^\/\/# sourceMappingURL=data:application\/json;charset=utf-8;base64,(.+)/m.exec(code)[1];
+			const json = new Buffer(base64, 'base64').toString();
+			const map = JSON.parse(json);
+			expect(map.file).to.equal(results.sha1);
+		});
+	});
+
 	it('should support alternative hashing algorithms if configured', () => {
 		const res = hashWithOptions({ dest: 'tmp/[hash].js', algorithm: 'md5' });
 		return res.then(() => {
@@ -94,6 +127,22 @@ describe('rollup-plugin-hash', () => {
 		return res.then(() => {
 			const tmp = fs.readdirSync('tmp');
 			expect(tmp).to.have.length(1);
+			expect(tmp).to.contain(results.sha1);
+		});
+	});
+
+	it('should replace dest filename template with sub-string of bundle hash', () => {
+		const res = hashWithOptions({ dest: 'tmp/[hash:4].js' });
+		return res.then(() => {
+			const tmp = fs.readdirSync('tmp');
+			expect(tmp).to.contain(`${results.sha1.substr(0, 4)}.js`);
+		});
+	});
+
+	it('should use bundle hash when substring length is greater then original', () => {
+		const res = hashWithOptions({ dest: 'tmp/[hash:41].js' });
+		return res.then(() => {
+			const tmp = fs.readdirSync('tmp');
 			expect(tmp).to.contain(results.sha1);
 		});
 	});
@@ -139,4 +188,12 @@ describe('rollup-plugin-hash', () => {
 		});
 	});
 
+	it('should call a callback with the hashed filename, if supplied', () => {
+		const callback = chai.spy();
+		const res = hashWithOptions({ dest: 'tmp/[hash].js', manifest: 'tmp/manifest.json', callback });
+		return res.then(() => {
+			expect(callback).to.have.been.called.once;
+			expect(callback).to.have.been.called.with(`tmp/${results.sha1}`);
+		});
+	});
 });

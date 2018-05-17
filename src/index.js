@@ -21,20 +21,25 @@ const msg = {
 	noManifestKey: '[Hash] Key for manifest filename must be a string'
 };
 
+const pattern = /\[hash(?::(\d+))?\]/;
+
 function hasTemplate(dest) {
-	return /\[hash\]/.test(dest);
+	return pattern.test(dest);
 }
 
 function generateManifest(input, output) {
-	return `
-		{
-			"${input}": "${output}"
-		}
-	`;
+	return JSON.stringify({[input]: output});
 }
 
 function formatFilename(dest, hash, name) {
-	return dest.replace('[hash]', hash)
+	const match = pattern.exec(dest);
+	const length = match && match[1];
+	let hashResult = hash;
+	if (length) {
+		hashResult = hash.substr(0, +length);
+	}
+	return dest
+		.replace(pattern, hashResult)
 		.replace('[name]', name);
 }
 
@@ -58,8 +63,10 @@ export default function hash(opts = {}) {
 	return {
 		name: 'hash',
 		onwrite: function(bundle, data) {
+			const destinationOption = options.output ? options.output.file : options.dest;
+			const builtFile = bundle.file || bundle.dest;
 
-			if(!options.dest || !hasTemplate(options.dest)) {
+			if(!destinationOption || !hasTemplate(destinationOption)) {
 				logError(msg.noTemplate);
 				return false;
 			}
@@ -80,21 +87,41 @@ export default function hash(opts = {}) {
 			}
 
 			const hash = hasha(data.code, options);
-			const fileName = formatFilename(options.dest, hash, path.parse(bundle.dest).name);
+			const fileName = formatFilename(destinationOption, hash, path.parse(bundle.dest).name);
 
 			if(options.replace) {
-				fs.unlinkSync(bundle.dest);
+				fs.unlinkSync(builtFile);
 			}
 
 			if(options.manifest) {
-				const manifest = generateManifest(options.manifestKey || bundle.dest, fileName);
+				const manifest = generateManifest(options.manifestKey || builtFile, fileName);
 				mkdirpath(options.manifest);
 				fs.writeFileSync(options.manifest, manifest, 'utf8');
 			}
 
 			mkdirpath(fileName);
-			fs.writeFileSync(fileName, data.code, 'utf8');
+
+			let code = data.code;
+			if (bundle.sourcemap) {
+				const basename = path.basename(fileName);
+				data.map.file = basename;
+
+				let url;
+				if (bundle.sourcemap === 'inline') {
+					url = data.map.toUrl();
+				} else {
+					url = basename + '.map';
+					fs.writeFileSync(fileName + '.map', data.map.toString());
+				}
+
+				code += `\n//# sourceMappingURL=${url}`;
+			}
+
+			fs.writeFileSync(fileName, code, 'utf8');
+
+			if(options.callback && typeof options.callback === 'function') {
+				options.callback(fileName);
+			}
 		}
 	};
 }
-

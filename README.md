@@ -43,6 +43,9 @@ rollup({
 });
 ```
 
+Meanwhile, if dest filename is written the following way, only first 4 characters of hash will
+be used in final filename: `main.[hash:4].js`. You could change this number to modify the
+output result.
 
 ## Options
 
@@ -93,6 +96,13 @@ Required: `false`
 
 The filename used as the input key in the generated manifest map. 
 Useful in certain build setups where `path.resolve` is needed as `bundle.dest` but not in the manifest.
+
+### callback
+
+Type: `function`
+Required: `false`
+
+Callback which is called with the resulting hashed filename. This is useful if you are integrating with other build steps and want to store the filename locally to be used in subsequent configs etc.
 
 # License
 
